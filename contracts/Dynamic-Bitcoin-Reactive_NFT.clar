@@ -53,3 +53,31 @@
 (define-read-only (get-token-stage (token-id uint))
     (map-get? token-stage {token-id: token-id})
 )
+
+;; Minting
+(define-public (mint)
+    (let (
+        (token-id (+ (var-get last-token-id) u1))
+    )
+    (asserts! (var-get collection-activated) ERR-WRONG-STAGE)
+    
+    ;; Mint token
+    (try! (nft-mint? bitcoin-reactive-nft token-id tx-sender))
+    
+    ;; Initialize metadata
+    (map-set token-metadata
+        {token-id: token-id}
+        {
+            base-uri: (var-get ipfs-root),
+            btc-blocks: block-height,
+            difficulty: default-btc-difficulty,
+            transaction-count: u0
+        }
+    )
+    
+    ;; Set initial stage
+    (map-set token-stage
+        {token-id: token-id}
+        {stage: u1, last-evolution: block-height}
+    )
+    
