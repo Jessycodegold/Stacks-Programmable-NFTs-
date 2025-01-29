@@ -80,4 +80,82 @@
         {token-id: token-id}
         {stage: u1, last-evolution: block-height}
     )
+       ;; Update last token id
+    (var-set last-token-id token-id)
+    (ok token-id)
+    )
+)
+
+;; Evolution mechanics
+(define-public (evolve-nft (token-id uint))
+    (let (
+        (owner (unwrap! (nft-get-owner? bitcoin-reactive-nft token-id) ERR-NOT-FOUND))
+        (current-stage (unwrap! (map-get? token-stage {token-id: token-id}) ERR-NOT-FOUND))
+        (metadata (unwrap! (map-get? token-metadata {token-id: token-id}) ERR-NOT-FOUND))
+    )
     
+    ;; Check ownership
+    (asserts! (is-eq tx-sender owner) ERR-NOT-AUTHORIZED)
+    
+    ;; Check evolution conditions based on Bitcoin block data
+    (asserts! (can-evolve? token-id) ERR-WRONG-STAGE)
+    
+    ;; Update stage
+    (map-set token-stage
+        {token-id: token-id}
+        {
+            stage: (+ (get stage current-stage) u1),
+            last-evolution: block-height
+        }
+    )
+    ;; Update metadata with new Bitcoin state
+    (map-set token-metadata
+        {token-id: token-id}
+        {
+            base-uri: (get base-uri metadata),
+            btc-blocks: (- block-height (get btc-blocks metadata)),
+            difficulty: (get-btc-difficulty),
+            transaction-count: (+ (get transaction-count metadata) u1)
+        }
+    )
+    
+    (ok true)
+    )
+)
+
+;; Bitcoin network interaction helpers
+(define-private (can-evolve? (token-id uint))
+    (let (
+        (stage-data (unwrap! (map-get? token-stage {token-id: token-id}) false))
+        (blocks-passed (- block-height (get last-evolution stage-data)))
+    )
+    (and
+        (>= blocks-passed u144) ;; Require minimum 1 day of Bitcoin blocks
+        (is-btc-block-valid?)
+    ))
+)
+
+(define-private (is-btc-block-valid?)
+    (get-block-info? was-btc-block-processed? (- block-height u1))
+)
+
+(define-private (get-btc-difficulty)
+    (default-to u1 (get-block-info? btc-difficulty (- block-height u1)))
+)
+
+;; Admin functions
+(define-public (activate-collection)
+    (begin
+        (asserts! (is-eq tx-sender CONTRACT-OWNER) ERR-NOT-AUTHORIZED)
+        (var-set collection-activated true)
+        (ok true)
+    )
+)
+
+(define-public (update-ipfs-root (new-root (string-ascii 80)))
+    (begin
+        (asserts! (is-eq tx-sender CONTRACT-OWNER) ERR-NOT-AUTHORIZED)
+        (var-set ipfs-root new-root)
+        (ok true)
+    )
+)
