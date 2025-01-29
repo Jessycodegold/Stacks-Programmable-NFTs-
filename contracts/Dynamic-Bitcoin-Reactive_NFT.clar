@@ -27,3 +27,29 @@
         transaction-count: uint
     }
 )
+;; SIP-009 NFT Implementation
+(define-non-fungible-token bitcoin-reactive-nft uint)
+
+;; Read-only functions
+(define-read-only (get-last-token-id)
+    (ok (var-get last-token-id))
+)
+
+(define-read-only (get-token-uri (token-id uint))
+    (let (
+        (token-data (unwrap! (map-get? token-metadata {token-id: token-id}) (err u404)))
+        (stage-data (unwrap! (map-get? token-stage {token-id: token-id}) (err u404)))
+    )
+    (ok (some (concat 
+        (get base-uri token-data) 
+        (concat 
+            (uint-to-ascii token-id)
+            (concat "-" (uint-to-ascii (get stage stage-data)))
+        )
+    )))
+    )
+)
+
+(define-read-only (get-token-stage (token-id uint))
+    (map-get? token-stage {token-id: token-id})
+)
