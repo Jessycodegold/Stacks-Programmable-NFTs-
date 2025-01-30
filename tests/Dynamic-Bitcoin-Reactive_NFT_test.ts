@@ -56,3 +56,40 @@ Clarinet.test({
         assertEquals(stage.includes('u2'), true);
     }
 });
+
+Clarinet.test({
+    name: "Ensures proper error handling for unauthorized operations",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const wallet1 = accounts.get('wallet_1')!;
+        const wallet2 = accounts.get('wallet_2')!;
+        
+        // Activate and mint
+        let block = chain.mineBlock([
+            Tx.contractCall('dynamic-nft', 'activate-collection', [], deployer.address),
+            Tx.contractCall('dynamic-nft', 'mint', [], wallet1.address)
+        ]);
+        
+        // Attempt unauthorized evolution
+        block = chain.mineBlock([
+            Tx.contractCall('dynamic-nft', 'evolve-nft', [types.uint(1)], wallet2.address)
+        ]);
+        assertEquals(block.receipts[0].result, '(err u101)');
+    }
+});
+
+Clarinet.test({
+    name: "Ensures IPFS root can be updated by contract owner",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const newRoot = 'ipfs://NewRoot/';
+        
+        let block = chain.mineBlock([
+            Tx.contractCall('dynamic-nft', 'update-ipfs-root', 
+                [types.ascii(newRoot)], 
+                deployer.address
+            )
+        ]);
+        assertEquals(block.receipts[0].result, '(ok true)');
+    }
+});
